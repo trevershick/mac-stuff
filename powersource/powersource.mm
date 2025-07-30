@@ -10,6 +10,7 @@
 #include <IOKit/pwr_mgt/IOPM.h>
 #include <MacTypes.h>
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -31,6 +32,18 @@ struct PowerSources {
   PowerSourceType current;
   std::vector<PowerSource> powerSources;
 };
+
+void Log(const PowerSources &);
+bool FetchPowerSources(PowerSources &);
+
+int main(int argc, char *argv[]) {
+  PowerSources ps;
+  if (FetchPowerSources(ps)) {
+    Log(ps);
+    return 0;
+  }
+  return 1;
+}
 
 PowerSourceType From(CFStringRef ref) {
   if (CFEqual(ref, CFSTR(kIOPMBatteryPowerKey))) {
@@ -88,20 +101,17 @@ void Log(const PowerSources &ps) {
   }
 }
 
-int main(int argc, char *argv[]) {
-  PowerSources sources;
+bool FetchPowerSources(PowerSources &sources) {
 
   @autoreleasepool {
-
     CFTypeRef blob = IOPSCopyPowerSourcesInfo();
     if (blob == nullptr) {
       NSLog(@"Couldn't get blob");
-      return 1;
+      return false;
     }
 
     CFTypeRef sourceType = IOPSGetProvidingPowerSourceType(blob);
     sources.current = From((CFStringRef)sourceType);
-    // NSLog(@"Currently Supplying Power: %@", sourceType);
 
     CFArrayRef list = IOPSCopyPowerSourcesList(blob);
     CFIndex count = CFArrayGetCount(list);
@@ -111,23 +121,9 @@ int main(int argc, char *argv[]) {
       CFTypeRef ps = (CFTypeRef *)CFArrayGetValueAtIndex(list, i);
       CFDictionaryRef dict = IOPSGetPowerSourceDescription(blob, ps);
       if (!dict) {
-        NSLog(@"Hmmm dict is empty");
         continue;
       }
       PowerSource source;
-      // NSDictionary *nsDictionary = (__bridge NSDictionary *)dict;
-      // for (id key in nsDictionary) {
-      //   id value = [nsDictionary objectForKey:key];
-      //   NSLog(@"Key: %@, Value: %@ Type: %@", key, value,
-      //         CFCopyTypeIDDescription(CFGetTypeID(value)));
-      // }
-
-      // CFStringRef name;
-      // CFStringRef powerSourceState;
-      // Boolean isCharging{false};
-
-      bool isBatteryBacked{false};
-      // SInt8 currentCapacity{0};
 
       CFTypeRef value = nullptr;
       // name
@@ -139,8 +135,9 @@ int main(int argc, char *argv[]) {
         source.name.resize(maxSize);
         CFStringGetCString((CFStringRef)value, (char *)source.name.data(),
                            maxSize, kCFStringEncodingUTF8);
-        // NSLog(@"Name is %s", source.name.c_str());
       }
+
+      bool isBatteryBacked{false};
 
       // power source state
       if (CFDictionaryGetValueIfPresent(dict, keyPowerSource, &value)) {
@@ -152,8 +149,6 @@ int main(int argc, char *argv[]) {
       if (isBatteryBacked &&
           CFDictionaryGetValueIfPresent(dict, keyIsCharging, &value)) {
         source.charging = CFBooleanGetValue((CFBooleanRef)value);
-        // NSLog(@"Is Charging %@", source.charging ? CFSTR("Yes") :
-        // CFSTR("No"));
       }
 
       // begin current capacity
@@ -162,12 +157,10 @@ int main(int argc, char *argv[]) {
           CFDictionaryGetValueIfPresent(dict, keyCurrentCapacity, &value) &&
           CFNumberGetValue((CFNumberRef)value, CFNumberType::kCFNumberSInt8Type,
                            &source.currentCapacity)) {
-        // NSLog(@"Current Capacity: %d", source.currentCapacity);
       }
       sources.powerSources.push_back(std::move(source));
     }
 
-  cleanup:
     // if (isCharging)
     // CFRelease(isCharging);
     if (list)

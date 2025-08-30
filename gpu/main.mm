@@ -24,6 +24,16 @@ int main() {
   NSArray<id<MTLDevice>> *allDevices = MTLCopyAllDevices();
   for (id<MTLDevice> device in allDevices) {
     NSLog(@"Available GPU: %@", device.name);
+    NSLog(@"   Low Power: %d", device.lowPower);
+    NSArray<id<MTLCounterSet>>* sets = device.counterSets;
+    for (id<MTLCounterSet> counterSet in device.counterSets ){
+      for (id<MTLCounter> counter in counterSet.counters )
+      {
+            printf("Counter set \"%s\" supports the \"%s\" counter set.\n",
+                   counterSet.name.UTF8String,
+                   counter.name.UTF8String);
+      }
+      }
   }
 
   return 0;

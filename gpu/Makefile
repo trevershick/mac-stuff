@@ -1,4 +1,4 @@
 
 gpu: main.mm
-	clang++ $^ -framework IOKit -framework Foundation -stdlib=libc++ -o $@
+	clang++ $^ -framework Metal -framework IOKit -framework Foundation -stdlib=libc++ -o $@
 	
